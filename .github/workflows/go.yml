@@ -1,64 +1,91 @@
 name: Build and Release Combine Go Program
+
 on:
   push:
     tags:
       - 'v*'  # Trigger only for version tags (e.g., v1.0.0)
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest, darwin-arm64
-        go-version: [1.18, 1.19, 1.20]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.18', '1.19', '1.20']
+        include:
+          - os: ubuntu-latest
+            go-version: '1.20'
+            arch: arm64
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+
       - name: Verify Go version
         run: go version
+
       - name: Install dependencies
         run: go mod tidy || echo "go mod tidy failed, but continuing"
-      - name: Build the program for ${{ matrix.os }}
+
+      - name: Build the program
+        shell: bash
         run: |
-          # Set the correct OS and architecture for each platform
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            GOOS=linux GOARCH=amd64 go build -o combine-linux-amd64-${{ matrix.go-version }} ./combine.go
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            GOOS=windows GOARCH=amd64 go build -o combine-windows-amd64-${{ matrix.go-version }}.exe ./combine.go
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            GOOS=darwin GOARCH=amd64 go build -o combine-darwin-amd64-${{ matrix.go-version }} ./combine.go
-          elif [[ "${{ matrix.os }}" == "darwin-arm64" ]]; then
-            GOOS=darwin GOARCH=arm64 go build -o combine-darwin-arm64-${{ matrix.go-version }} ./combine.go
+          BINARY_NAME="combine"
+          VERSION="${{ matrix.go-version }}"
+          
+          case "${{ matrix.os }}" in
+            "ubuntu-latest")
+              if [ "${{ matrix.arch }}" = "arm64" ]; then
+                GOOS=linux GOARCH=arm64 go build -o "${BINARY_NAME}-linux-arm64-${VERSION}"
+              else
+                GOOS=linux GOARCH=amd64 go build -o "${BINARY_NAME}-linux-amd64-${VERSION}"
+              fi
+              ;;
+            "windows-latest")
+              GOOS=windows GOARCH=amd64 go build -o "${BINARY_NAME}-windows-amd64-${VERSION}.exe"
+              ;;
+            "macos-latest")
+              GOOS=darwin GOARCH=amd64 go build -o "${BINARY_NAME}-darwin-amd64-${VERSION}"
+              ;;
+          esac
+
+      - name: Compress binaries
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "combine-${{ matrix.os }}-${{ matrix.go-version }}.zip" "combine-windows-amd64-${{ matrix.go-version }}.exe"
+          else
+            tar czf "combine-${{ matrix.os }}-${{ matrix.go-version }}.tar.gz" combine-*-${{ matrix.go-version }}*
           fi
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: combine-${{ matrix.os }}
+          name: combine-${{ matrix.os }}-${{ matrix.go-version }}
           path: |
-            combine-linux-amd64-${{ matrix.go-version }}
-            combine-windows-amd64-${{ matrix.go-version }}.exe
-            combine-darwin-amd64-${{ matrix.go-version }}
-            combine-darwin-arm64-${{ matrix.go-version }}
+            *.tar.gz
+            *.zip
+
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          path: artifacts  # Corrected placement of 'path'
+          path: artifacts
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            artifacts/combine-linux-amd64-*.tar.gz
-            artifacts/combine-darwin-amd64-*.tar.gz
-            artifacts/combine-windows-amd64-*.tar.gz
-            artifacts/combine-darwin-arm64-*.tar.gz
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
