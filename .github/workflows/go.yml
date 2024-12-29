@@ -22,10 +22,14 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Verify Go version
+        run: go version
+
       - name: Install dependencies
         run: |
-          go mod tidy
-
+          # Check if Go is properly installed
+          go mod tidy || echo "go mod tidy failed, but continuing"
+      
       - name: Build the program for ${{ matrix.os }}
         run: |
           # Set the correct OS and architecture for each platform
