@@ -1,5 +1,13 @@
 name: Build and Release Combine Go Program
 
+# Add permissions block at the workflow level
+permissions:
+  contents: write    # Required for creating releases and uploading assets
+  discussions: none
+  issues: none
+  packages: none
+  pull-requests: none
+
 on:
   push:
     tags:
