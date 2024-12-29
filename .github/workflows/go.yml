@@ -26,11 +26,15 @@ jobs:
         run: |
           go mod tidy
 
-      - name: Build the program
+      - name: Build the program for ${{ matrix.os }}
         run: |
-          GOOS=${{ matrix.os }} GOARCH=amd64 go build -o combine-${{ matrix.os }}-${{ matrix.go-version }} .
-          if [[ ${{ matrix.os }} == 'darwin-arm64' ]]; then
-            GOOS=darwin GOARCH=arm64 go build -o combine-darwin-arm64-${{ matrix.go-version }} .
+          # Set the correct OS and architecture for each platform
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" || "${{ matrix.os }}" == "windows-latest" ]]; then
+            GOOS=${{ matrix.os }} GOARCH=amd64 go build -o combine-${{ matrix.os }}-${{ matrix.go-version }} ./combine.go
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            GOOS=darwin GOARCH=amd64 go build -o combine-darwin-amd64-${{ matrix.go-version }} ./combine.go
+          elif [[ "${{ matrix.os }}" == "darwin-arm64" ]]; then
+            GOOS=darwin GOARCH=arm64 go build -o combine-darwin-arm64-${{ matrix.go-version }} ./combine.go
           fi
 
       - name: Upload build artifacts
@@ -39,7 +43,7 @@ jobs:
           name: combine-${{ matrix.os }}
           path: |
             combine-${{ matrix.os }}-${{ matrix.go-version }}
-            combine-darwin-arm64-${{ matrix.go-version }}  # Upload darwin-arm64 artifact
+            combine-darwin-arm64-${{ matrix.go-version }}  # Upload darwin-arm64 artifact if built
 
   release:
     needs: build
