@@ -90,7 +90,7 @@ jobs:
 
       - name: List files in artifacts
         run: |
-          ls -R artifacts
+          ls -l
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
